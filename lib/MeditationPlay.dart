@@ -10,11 +10,11 @@ class MeditationPlay extends StatefulWidget {
 }
 
 class _MeditationPlayState extends State<MeditationPlay> {
-  bool isPlaying = false;
   bool tapped = true;
   final player = AudioPlayer();
-  Duration duration = Duration.zero;
-  Duration position = Duration.zero;
+  Map<int, Duration> positions = {};
+  Map<int, Duration> durations = {};
+  Map<int, bool> isPlayingStates = {};
   int currentlyPlayingIndex = -1;
   Map<int, AudioPlayer> players = {};
   List<String> imagePath = [
@@ -40,21 +40,16 @@ class _MeditationPlayState extends State<MeditationPlay> {
   @override
   void initState() {
     super.initState();
+    // Initialize positions, durations and playing states for each player
+    for (int i = 0; i < imagePath.length; i++) {
+      positions[i] = Duration.zero;
+      durations[i] = Duration.zero;
+      isPlayingStates[i] = false;
+    }
+
     player.onPlayerStateChanged.listen((state) {
       setState(() {
-        isPlaying = state == PlayerState.playing;
-      });
-    });
-
-    player.onDurationChanged.listen((newDuration) {
-      setState(() {
-        duration = newDuration;
-      });
-    });
-
-    player.onPositionChanged.listen((newPosition) {
-      setState(() {
-        position = newPosition;
+        isPlayingStates[currentlyPlayingIndex] = state == PlayerState.playing;
       });
     });
   }
@@ -95,24 +90,27 @@ class _MeditationPlayState extends State<MeditationPlay> {
                         },
                         itemCount: imagePath.length,
                         itemBuilder: (context, index) {
-                          return  Container(
+                          return Container(
                             decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(15)),
                             height: MediaQuery.of(context).size.height * 0.12,
                             child: isRight[index]
-                                ? Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                children: [
-                                  musicCard(isPlaying: isPlaying, tapped: tapped, index: index),
-                                  Image.asset(imagePath[index]),
-                                ])
+                                ? Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                        musicCard(tapped: tapped, index: index),
+                                        Image.asset(imagePath[index]),
+                                      ])
                                 : Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                Image.asset(imagePath[index]),
-                                musicCard(isPlaying: isPlaying, tapped: tapped, index: index),
-                              ],
-                            ),
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                      Image.asset(imagePath[index]),
+                                      musicCard(tapped: tapped, index: index),
+                                    ],
+                                  ),
                           );
                         },
                       ),
@@ -130,147 +128,146 @@ class _MeditationPlayState extends State<MeditationPlay> {
     );
   }
 
-  Widget musicCard({bool? isPlaying, bool? tapped, int? index}) {
+  Widget musicCard({bool? tapped, int? index}) {
     if (!players.containsKey(index)) {
       players[index!] = AudioPlayer();
       players[index]!.onPlayerStateChanged.listen((state) {
         setState(() {
-          isPlaying = state == PlayerState.playing;
+          isPlayingStates[index] = state == PlayerState.playing;
         });
       });
 
       players[index]!.onDurationChanged.listen((newDuration) {
         setState(() {
-          duration = newDuration;
+          durations[index] = newDuration;
         });
       });
 
       players[index]!.onPositionChanged.listen((newPosition) {
         setState(() {
-          position = newPosition;
+          positions[index] = newPosition;
         });
       });
     }
     return Container(
-            width: MediaQuery.of(context).size.width * 0.5,
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      width: double.infinity,
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 1.5,
-                          trackShape: const RoundedRectSliderTrackShape(),
-                          thumbShape:
-                              RoundSliderThumbShape(enabledThumbRadius: 7.0),
-                        ),
-                        child: Slider(
-                          activeColor: Colors.black,
-                          allowedInteraction: SliderInteraction.tapAndSlide,
-                          min: 0,
-                          max: duration.inSeconds.toDouble(),
-                          value: position.inSeconds.toDouble(),
-                          onChanged: (value) {
-                            final position = Duration(seconds: value.toInt());
-                            player.seek(position);
-                            player.resume();
-                          },
-                        ),
-                      ),
+      width: MediaQuery.of(context).size.width * 0.5,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(
+          flex: 1,
+          child: Container(
+            width: double.infinity,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 1.5,
+                trackShape: const RoundedRectSliderTrackShape(),
+                thumbShape: RoundSliderThumbShape(enabledThumbRadius: 7.0),
+              ),
+              child: Slider(
+                activeColor: Colors.black,
+                allowedInteraction: SliderInteraction.tapAndSlide,
+                min: 0,
+                max: durations[index!]!.inSeconds.toDouble(),
+                value: positions[index]!.inSeconds.toDouble(),
+                onChanged: (value) {
+                  final position = Duration(seconds: value.toInt());
+                  players[index]!.seek(position);
+                  players[index]!.resume();
+                },
+              ),
+            ),
+          ),
+        ),
+        Container(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.stop,
+                      size: 20,
                     ),
+                    onPressed: () {
+                      players[index]!.stop();
+                      setState(() {
+                        isPlayingStates[index] = false;
+                        positions[index] = Duration.zero;
+                      });
+                    },
                   ),
-                  Container(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.white.withOpacity(0.3),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.stop,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                player.stop();
-                              },
-                            ),
-                          ),
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.white.withOpacity(0.3),
-                            child: IconButton(
-                              icon: Icon(
-                                isPlaying! ? Icons.pause : Icons.play_arrow,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                String music = '';
-                                setState(() {
-                                  isPlaying = !isPlaying!;
-                                  if (isPlaying!) {
-                                    if (currentlyPlayingIndex != -1 &&
-                                        currentlyPlayingIndex != index) {
-                                      players[currentlyPlayingIndex]!.pause();
-                                    }
-                                    currentlyPlayingIndex = index!;
-                                    players[index]!.play(AssetSource(music));
-                                  } else {
-                                    players[index]!.pause();
-                                    currentlyPlayingIndex = -1;
-                                  }
-                                });
-                                if (isPlaying!) {
-                                  switch (index) {
-                                    case 0:
-                                      music = '396_music.mp3';
-                                      break;
-                                    case 1:
-                                      music = '417_music.mp3';
-                                      break;
-                                    case 2:
-                                      music = '528_music.mp3';
-                                      break;
-                                    case 3:
-                                      music = '639_music.mp3';
-                                      break;
-                                    case 4:
-                                      music = '741_music.mp3';
-                                      break;
-                                    case 5:
-                                      music = '852_music.mp3';
-                                      break;
-                                    case 6:
-                                      music = '963_music.mp3';
-                                      break;
-                                  }
-                                  player.play(AssetSource(music));
-                                } else {
-                                  player.pause();
-                                }
-                              },
-                            ),
-                          ),
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.white.withOpacity(0.3),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.repeat_one,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                // player.stop();
-                              },
-                            ),
-                          ),
-                        ],
-                      )),
-                ]),
-          );
+                ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  child: IconButton(
+                    icon: Icon(
+                      isPlayingStates[index]! ? Icons.pause : Icons.play_arrow,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      String music = '';
+                      setState(() {
+                        if (currentlyPlayingIndex != -1 &&
+                            currentlyPlayingIndex != index) {
+                          players[currentlyPlayingIndex]!.pause();
+                          isPlayingStates[currentlyPlayingIndex] = false;
+                        }
+
+                        if (!isPlayingStates[index]!) {
+                          currentlyPlayingIndex = index;
+                          isPlayingStates[index] = true;
+                          switch (index) {
+                            case 0:
+                              music = '396_music.mp3';
+                              break;
+                            case 1:
+                              music = '417_music.mp3';
+                              break;
+                            case 2:
+                              music = '528_music.mp3';
+                              break;
+                            case 3:
+                              music = '639_music.mp3';
+                              break;
+                            case 4:
+                              music = '741_music.mp3';
+                              break;
+                            case 5:
+                              music = '852_music.mp3';
+                              break;
+                            case 6:
+                              music = '963_music.mp3';
+                              break;
+                          }
+                          players[index]!.play(AssetSource(music));
+                        } else {
+                          isPlayingStates[index] = false;
+                          players[index]!.pause();
+                          currentlyPlayingIndex = -1;
+                        }
+                      });
+                    },
+                  ),
+                ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.repeat_one,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      // player.stop();
+                    },
+                  ),
+                ),
+              ],
+            )),
+      ]),
+    );
   }
 }
